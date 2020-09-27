@@ -1,0 +1,110 @@
+---
+title: "pew_leadr"
+author: "ML"
+date: "9/27/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+## Load packages
+
+```{r}
+
+# check to see if packages are installed. Install them if they are not, then load them into the R session.
+
+ipak <- function(pkg) {
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg))
+    install.packages(new.pkg, dependencies = TRUE)
+  sapply(pkg, require, character.only = TRUE)
+}
+
+packages <- c("tidyverse", "zoo")
+ipak(packages)
+
+#install.packages("dplyr") run in case of "there is no package called ‘rlang’" error
+
+```
+
+
+## Get and clean data
+
+```{r}
+#export and save table found on https://www.pewresearch.org/global/question-search/?qid=1284&cntIDs=&stdIDs=
+
+pew_leadr_data <-
+  read_csv(
+    "data-raw/pew_leading_economic_power_data.csv",
+    col_names = T,
+    skip = 1,
+    col_types = cols('X16' = col_skip(), 'X17' = col_skip())
+  )
+
+pew_leadr_data$Country <- na.locf(pew_leadr_data$Country)
+
+pew_leadr_data_clean <- pew_leadr_data %>%
+  filter(Survey == "Spring 2016" | Survey == "Spring 2019") %>%
+  mutate(USA = `United States` + `The United States`) %>%
+  select(Country, Survey, USA, China)
+
+save(pew_leadr_data_clean, file = "data/pew_leadr_data_clean.rda")
+rm(pew_leadr_data)
+rm(pew_leadr_data_clean)
+
+```
+
+# Pivot wide and calculate summary statistics
+
+```{r}
+
+load("data/pew_leadr_data_clean.rda")
+
+pew_leadr_data_wide <- pew_leadr_data_clean %>%
+  pivot_wider(
+    id_cols = Country,
+    names_from = Survey,
+    values_from = c('USA', 'China')
+  ) %>%
+  select(
+    `Country`,
+    `USA_Spring 2016`,
+    `USA_Spring 2019`,
+    `China_Spring 2016`,
+    `China_Spring 2019`
+  ) %>%
+  mutate(
+    `USA '16-'19 change` = `USA_Spring 2019` - `USA_Spring 2016`,
+    `China '16-'19 change` = `China_Spring 2019` - `China_Spring 2016`
+  )
+
+summary(pew_leadr_data_wide)
+
+save(pew_leadr_data_wide, file = "data/pew_leadr_data_wide.rda")
+rm(pew_leadr_data_clean)
+
+```
+
+# Identify min and max cases
+
+```{r}
+Change_minmax <- pew_leadr_data_wide %>%
+  filter(
+    `USA '16-'19 change` == -19 |
+      `USA '16-'19 change` == 7 |
+      `China '16-'19 change` == -3 |
+      `China '16-'19 change` == 23
+  )
+
+
+```
+
+
